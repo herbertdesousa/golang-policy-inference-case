@@ -1,6 +1,6 @@
 ## Roadmap
 
-[ ] Criar core dump
+[x] Criar core dump
 [ ] Criar http server
 [ ] Criar teste de integração
 [ ] Criar teste de carga
