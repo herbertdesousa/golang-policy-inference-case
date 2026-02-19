@@ -1,10 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
-	"time"
 
 	"github.com/awalterschulze/gographviz"
 	"github.com/expr-lang/expr"
@@ -21,8 +22,16 @@ type PolicyEngine struct {
 	Adjacency map[string][]CompiledEdge
 }
 
+type InferRequest struct {
+	PolicyDot string                 `json:"policy_dot"`
+	Input     map[string]interface{} `json:"input"`
+}
+
+type InferResponse struct {
+	Output map[string]interface{} `json:"output"`
+}
+
 func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
-	// Bypass gographviz validation errors
 	dotString = strings.ReplaceAll(dotString, "result=", "comment=")
 	dotString = strings.ReplaceAll(dotString, "cond=", "label=")
 
@@ -140,43 +149,75 @@ func (e *PolicyEngine) Evaluate(startNode string, payload map[string]interface{}
 	return currentNode, resultStr
 }
 
-func main() {
-	dotString := `digraph Policy {
-		start [result=""]
-		check_income [result=""]
-		approved [result="tier=prime"]
-		rejected [result="approved=false"]
-		
-		start -> check_income [cond="age>=18"]
-		start -> rejected [cond="age<18"]
-		
-		check_income -> approved [cond="income >= 50000"]
-		check_income -> rejected [cond="income < 50000"]
-	}`
+func enrichResult(resultStr string, input map[string]interface{}) map[string]interface{} {
+	output := make(map[string]interface{})
 
-	dummyEnv := map[string]interface{}{
-		"age": 0, "income": 0,
+	for k, v := range input {
+		output[k] = v
 	}
 
-	fmt.Println("Initializing Engine...")
-	engine, err := NewPolicyEngine(dotString, dummyEnv)
+	if resultStr == "" {
+		return output
+	}
+
+	pairs := strings.Split(resultStr, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+		if len(kv) == 2 {
+			key := strings.TrimSpace(kv[0])
+			val := strings.TrimSpace(kv[1])
+
+			if val == "true" {
+				output[key] = true
+			} else if val == "false" {
+				output[key] = false
+			} else {
+				output[key] = val
+			}
+		}
+	}
+
+	return output
+}
+
+func handleInfer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req InferRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	engine, err := NewPolicyEngine(req.PolicyDot, req.Input)
 	if err != nil {
-		log.Fatalf("Failed to initialize engine: %v", err)
+		http.Error(w, "Failed to initialize policy: "+err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	payload := map[string]interface{}{
-		"age":    25,
-		"income": 60000,
+	_, resultStr := engine.Evaluate("start", req.Input)
+
+	finalOutput := enrichResult(resultStr, req.Input)
+
+	resp := InferResponse{Output: finalOutput}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
 	}
+}
 
-	fmt.Println("Evaluating Payload...")
+func main() {
+	http.HandleFunc("/infer", handleInfer)
 
-	start := time.Now()
-	finalNode, result := engine.Evaluate("start", payload)
-	duration := time.Since(start)
+	port := ":8080"
+	fmt.Printf("HTTP server running on port %s\n", port)
+	fmt.Printf("Send POST to http://localhost%s/infer\n", port)
 
-	fmt.Printf("\nPayload:      %+v\n", payload)
-	fmt.Printf("Landed Node:  %s\n", finalNode)
-	fmt.Printf("Final Result: %s\n", result)
-	fmt.Printf("Eval Time:    %s\n", duration)
+	if err := http.ListenAndServe(port, nil); err != nil {
+		log.Fatal(err)
+	}
 }
