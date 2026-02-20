@@ -58,6 +58,9 @@ func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
 
 		cond := strings.Trim(condStr, "\"")
 
+		cond = strings.ReplaceAll(cond, `\"`, `"`)
+		cond = strings.ReplaceAll(cond, `\`, `"`)
+
 		program, err := expr.Compile(cond, expr.Env(env))
 		if err != nil {
 			return nil, fmt.Errorf("failed to compile condition '%s': %w", cond, err)

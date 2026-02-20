@@ -1,0 +1,104 @@
+digraph ComplexPolicy {
+  start [result=""]
+
+  # Level 1
+  n_age_high [result="age_segment=adult"]
+  n_age_low [result="age_segment=minor"]
+
+  start -> n_age_high [cond="age>=25"]
+  start -> n_age_low [cond="age<25"]
+
+  # Level 2
+  n_score_high
+  n_score_mid
+  n_score_low
+
+  n_age_high -> n_score_high [cond="score>=750"]
+  n_age_high -> n_score_mid [cond="score>=600 && score<750"]
+  n_age_high -> n_score_low [cond="score<600"]
+
+  n_age_low -> reject_minor [cond="age<18"]
+  n_age_low -> n_young_adult [cond="age>=18"]
+
+  reject_minor [result="approved=false,reason=underage"]
+
+  # Level 3
+  n_income_high
+  n_income_mid
+  n_income_low
+
+  n_score_high -> n_income_high [cond="income>=15000"]
+  n_score_high -> n_income_mid [cond="income>=8000 && income<15000"]
+  n_score_high -> n_income_low [cond="income<8000"]
+
+  n_score_mid -> n_income_mid [cond="income>=7000"]
+  n_score_mid -> n_income_low [cond="income<7000"]
+
+  n_score_low -> reject_low_score [cond="score<500"]
+  n_score_low -> n_income_low [cond="score>=500"]
+
+  reject_low_score [result="approved=false,reason=low_score"]
+
+  # Level 4
+  n_country_domestic
+  n_country_foreign
+
+  n_income_high -> n_country_domestic [cond="country==\"BR\""]
+  n_income_high -> n_country_foreign [cond="country!=\"BR\""]
+
+  n_income_mid -> n_country_domestic [cond="country==\"BR\""]
+  n_income_mid -> n_country_foreign [cond="country!=\"BR\""]
+
+  n_income_low -> reject_low_income [cond="income<4000"]
+  n_income_low -> n_country_domestic [cond="income>=4000 && country==\"BR\""]
+  n_income_low -> n_country_foreign [cond="income>=4000 && country!=\"BR\""]
+
+  reject_low_income [result="approved=false,reason=low_income"]
+
+  # Level 5
+  n_tenure_high
+  n_tenure_mid
+  n_tenure_low
+
+  n_country_domestic -> n_tenure_high [cond="tenure_months>=36"]
+  n_country_domestic -> n_tenure_mid [cond="tenure_months>=12 && tenure_months<36"]
+  n_country_domestic -> n_tenure_low [cond="tenure_months<12"]
+
+  n_country_foreign -> review_foreign [cond="risk_flag==true"]
+  n_country_foreign -> n_tenure_mid [cond="risk_flag==false"]
+
+  review_foreign [result="approved=false,reason=foreign_risk"]
+
+  # Level 6
+  approve_prime
+  approve_standard
+  approve_basic
+  manual_review
+
+  n_tenure_high -> approve_prime [cond="has_default==false"]
+  n_tenure_high -> manual_review [cond="has_default==true"]
+
+  n_tenure_mid -> approve_standard [cond="has_default==false && product_type==\"credit\""]
+  n_tenure_mid -> approve_basic [cond="has_default==false && product_type!=\"credit\""]
+  n_tenure_mid -> manual_review [cond="has_default==true"]
+
+  n_tenure_low -> manual_review [cond="has_default==true"]
+  n_tenure_low -> approve_basic [cond="has_default==false"]
+
+  # Leaves
+  approve_prime [
+    result="approved=true,segment=prime,limit_multiplier=3"
+  ]
+
+  approve_standard [
+    result="approved=true,segment=standard,limit_multiplier=2"
+  ]
+
+  approve_basic [
+    result="approved=true,segment=basic,limit_multiplier=1"
+  ]
+
+  manual_review [
+    result="approved=false,reason=manual_review"
+  ]
+}
