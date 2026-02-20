@@ -2,7 +2,7 @@ run:
 	go run cmd/main.go
 
 test-integration:
-	go test -v -count=1 ./test
+	go test -v -count=1 ./test/integration
 
 ci:
 	@echo "up env"

@@ -3,7 +3,7 @@ package test
 import (
 	"bytes"
 	"encoding/json"
-	"golang-policy-inference-case/test/base"
+	"golang-policy-inference-case/test/integration/base"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,7 +21,7 @@ type InferTestSuite struct {
 func (s *InferTestSuite) readPolicyDotFile(policyDotFile string) string {
 	_, testFile, _, _ := runtime.Caller(0)
 	testDir := filepath.Dir(testFile)
-	dotFilePath := filepath.Join(testDir, "digraphs", policyDotFile)
+	dotFilePath := filepath.Join(testDir, "..", "digraphs", policyDotFile)
 
 	dotContent, err := os.ReadFile(dotFilePath)
 	if err != nil {
