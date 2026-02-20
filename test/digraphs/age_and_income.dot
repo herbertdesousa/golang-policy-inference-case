@@ -1,0 +1,11 @@
+digraph {
+  start [result=""];
+  check_income [result=""];
+  approved [result="tier=prime"];
+  rejected [result="approved=false"];
+
+  start -> check_income [cond="age>=18"];
+  start -> rejected [cond="age<18"];
+  check_income -> approved [cond="income >= 50000"];
+  check_income -> rejected [cond="income < 50000"];
+}
