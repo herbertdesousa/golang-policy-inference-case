@@ -1,0 +1,141 @@
+digraph B2BLoanPolicy {
+  start [result=""]
+
+  # Level 1: Initial Knockouts (Company Age & Bankruptcies)
+  reject_bankrupt [result="approved=false,reason=recent_bankruptcy"]
+  reject_startup [result="approved=false,reason=too_young"]
+  n_age_established [result="segment=established"]
+  n_age_growing [result="segment=growing"]
+
+  start -> reject_bankrupt [cond="has_recent_bankruptcy==true"]
+  start -> reject_startup [cond="has_recent_bankruptcy==false && company_age_years<1"]
+  start -> n_age_growing [cond="has_recent_bankruptcy==false && company_age_years>=1 && company_age_years<3"]
+  start -> n_age_established [cond="has_recent_bankruptcy==false && company_age_years>=3"]
+
+  # Level 2: Revenue Brackets for Growing Companies
+  g_rev_low
+  g_rev_mid
+  g_rev_high
+
+  n_age_growing -> g_rev_low [cond="annual_revenue<500000"]
+  n_age_growing -> g_rev_mid [cond="annual_revenue>=500000 && annual_revenue<2000000"]
+  n_age_growing -> g_rev_high [cond="annual_revenue>=2000000"]
+
+  # Level 2: Revenue Brackets for Established Companies
+  e_rev_low
+  e_rev_mid
+  e_rev_high
+  e_rev_enterprise
+
+  n_age_established -> e_rev_low [cond="annual_revenue<1000000"]
+  n_age_established -> e_rev_mid [cond="annual_revenue>=1000000 && annual_revenue<5000000"]
+  n_age_established -> e_rev_high [cond="annual_revenue>=5000000 && annual_revenue<20000000"]
+  n_age_established -> e_rev_enterprise [cond="annual_revenue>=20000000"]
+
+  # Level 3: Debt-to-Income (DTI) Checks for Growing
+  g_dti_safe [result="dti_status=safe"]
+  g_dti_warn [result="dti_status=warning"]
+  g_dti_reject [result="approved=false,reason=high_dti"]
+
+  g_rev_low -> g_dti_safe [cond="(current_debt / annual_revenue) < 0.2"]
+  g_rev_low -> g_dti_warn [cond="(current_debt / annual_revenue) >= 0.2 && (current_debt / annual_revenue) < 0.4"]
+  g_rev_low -> g_dti_reject [cond="(current_debt / annual_revenue) >= 0.4"]
+
+  g_rev_mid -> g_dti_safe [cond="(current_debt / annual_revenue) < 0.3"]
+  g_rev_mid -> g_dti_warn [cond="(current_debt / annual_revenue) >= 0.3 && (current_debt / annual_revenue) < 0.5"]
+  g_rev_mid -> g_dti_reject [cond="(current_debt / annual_revenue) >= 0.5"]
+
+  g_rev_high -> g_dti_safe [cond="(current_debt / annual_revenue) < 0.4"]
+  g_rev_high -> g_dti_warn [cond="(current_debt / annual_revenue) >= 0.4 && (current_debt / annual_revenue) < 0.6"]
+  g_rev_high -> g_dti_reject [cond="(current_debt / annual_revenue) >= 0.6"]
+
+  # Level 3: Debt-to-Income (DTI) Checks for Established
+  e_dti_safe [result="dti_status=safe"]
+  e_dti_warn [result="dti_status=warning"]
+  e_dti_reject [result="approved=false,reason=high_dti"]
+
+  e_rev_low -> e_dti_safe [cond="(current_debt / annual_revenue) < 0.3"]
+  e_rev_low -> e_dti_warn [cond="(current_debt / annual_revenue) >= 0.3 && (current_debt / annual_revenue) < 0.5"]
+  e_rev_low -> e_dti_reject [cond="(current_debt / annual_revenue) >= 0.5"]
+
+  e_rev_mid -> e_dti_safe [cond="(current_debt / annual_revenue) < 0.4"]
+  e_rev_mid -> e_dti_warn [cond="(current_debt / annual_revenue) >= 0.4 && (current_debt / annual_revenue) < 0.6"]
+  e_rev_mid -> e_dti_reject [cond="(current_debt / annual_revenue) >= 0.6"]
+
+  e_rev_high -> e_dti_safe [cond="(current_debt / annual_revenue) < 0.5"]
+  e_rev_high -> e_dti_warn [cond="(current_debt / annual_revenue) >= 0.5 && (current_debt / annual_revenue) < 0.7"]
+  e_rev_high -> e_dti_reject [cond="(current_debt / annual_revenue) >= 0.7"]
+
+  e_rev_enterprise -> e_dti_safe [cond="(current_debt / annual_revenue) < 0.6"]
+  e_rev_enterprise -> e_dti_warn [cond="(current_debt / annual_revenue) >= 0.6 && (current_debt / annual_revenue) < 0.8"]
+  e_rev_enterprise -> e_dti_reject [cond="(current_debt / annual_revenue) >= 0.8"]
+
+  # Level 4: Owner Credit Score & Industry Risk (Growing - Safe DTI)
+  g_safe_score_high
+  g_safe_score_low
+
+  g_dti_safe -> g_safe_score_high [cond="owner_credit_score >= 700"]
+  g_dti_safe -> g_safe_score_low [cond="owner_credit_score < 700"]
+
+  g_safe_score_high -> approve_g_tier1 [cond="industry_risk == 'low'"]
+  g_safe_score_high -> approve_g_tier2 [cond="industry_risk == 'medium'"]
+  g_safe_score_high -> review_g [cond="industry_risk == 'high'"]
+
+  g_safe_score_low -> approve_g_tier2 [cond="industry_risk == 'low'"]
+  g_safe_score_low -> approve_g_tier3 [cond="industry_risk == 'medium'"]
+  g_safe_score_low -> reject_risk [cond="industry_risk == 'high'"]
+
+  # Level 4: Owner Credit Score & Industry Risk (Growing - Warn DTI)
+  g_warn_score_high
+  g_warn_score_low
+
+  g_dti_warn -> g_warn_score_high [cond="owner_credit_score >= 720"]
+  g_dti_warn -> g_warn_score_low [cond="owner_credit_score < 720"]
+
+  g_warn_score_high -> approve_g_tier3 [cond="industry_risk == 'low' || industry_risk == 'medium'"]
+  g_warn_score_high -> reject_risk [cond="industry_risk == 'high'"]
+
+  g_warn_score_low -> review_g [cond="industry_risk == 'low'"]
+  g_warn_score_low -> reject_risk [cond="industry_risk != 'low'"]
+
+  # Level 4: Owner Credit Score & Industry Risk (Established - Safe DTI)
+  e_safe_score_high
+  e_safe_score_low
+
+  e_dti_safe -> e_safe_score_high [cond="owner_credit_score >= 680"]
+  e_dti_safe -> e_safe_score_low [cond="owner_credit_score < 680"]
+
+  e_safe_score_high -> approve_e_platinum [cond="industry_risk == 'low'"]
+  e_safe_score_high -> approve_e_gold [cond="industry_risk == 'medium'"]
+  e_safe_score_high -> approve_e_silver [cond="industry_risk == 'high'"]
+
+  e_safe_score_low -> approve_e_gold [cond="industry_risk == 'low'"]
+  e_safe_score_low -> approve_e_silver [cond="industry_risk == 'medium'"]
+  e_safe_score_low -> review_e [cond="industry_risk == 'high'"]
+
+  # Level 4: Owner Credit Score & Industry Risk (Established - Warn DTI)
+  e_warn_score_high
+  e_warn_score_low
+
+  e_dti_warn -> e_warn_score_high [cond="owner_credit_score >= 700"]
+  e_dti_warn -> e_warn_score_low [cond="owner_credit_score < 700"]
+
+  e_warn_score_high -> approve_e_silver [cond="industry_risk == 'low' || industry_risk == 'medium'"]
+  e_warn_score_high -> review_e [cond="industry_risk == 'high'"]
+
+  e_warn_score_low -> review_e [cond="industry_risk == 'low'"]
+  e_warn_score_low -> reject_risk [cond="industry_risk != 'low'"]
+
+  # Level 5: Leaves & Approvals
+  approve_g_tier1 [result="approved=true,tier=g1,limit_multiplier=1.5,rate=7.5"]
+  approve_g_tier2 [result="approved=true,tier=g2,limit_multiplier=1.0,rate=9.9"]
+  approve_g_tier3 [result="approved=true,tier=g3,limit_multiplier=0.5,rate=12.5"]
+  review_g [result="approved=false,reason=manual_review_growing"]
+
+  approve_e_platinum [result="approved=true,tier=platinum,limit_multiplier=3.0,rate=5.5"]
+  approve_e_gold [result="approved=true,tier=gold,limit_multiplier=2.0,rate=6.5"]
+  approve_e_silver [result="approved=true,tier=silver,limit_multiplier=1.2,rate=8.5"]
+  review_e [result="approved=false,reason=manual_review_established"]
+
+  reject_risk [result="approved=false,reason=high_combined_risk"]
+}

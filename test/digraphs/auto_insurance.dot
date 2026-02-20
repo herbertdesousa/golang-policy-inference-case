@@ -1,0 +1,138 @@
+digraph AutoInsurancePolicy {
+  start [result=""]
+
+  # Level 1: Driver Age Brackets
+  age_teen
+  age_young
+  age_adult
+  age_senior
+
+  start -> age_teen [cond="driver_age >= 16 && driver_age <= 19"]
+  start -> age_young [cond="driver_age >= 20 && driver_age <= 25"]
+  start -> age_adult [cond="driver_age > 25 && driver_age <= 65"]
+  start -> age_senior [cond="driver_age > 65"]
+  start -> reject_underage [cond="driver_age < 16"]
+
+  reject_underage [result="eligible=false,reason=underage"]
+
+  # Level 2: Accident History (Past 5 Years)
+  teen_clean
+  teen_risk
+
+  age_teen -> teen_clean [cond="accidents_5y == 0"]
+  age_teen -> teen_risk [cond="accidents_5y >= 1"]
+
+  young_clean
+  young_risk
+  young_reject [result="eligible=false,reason=too_many_accidents_young"]
+
+  age_young -> young_clean [cond="accidents_5y == 0"]
+  age_young -> young_risk [cond="accidents_5y == 1 || accidents_5y == 2"]
+  age_young -> young_reject [cond="accidents_5y > 2"]
+
+  adult_clean
+  adult_minor_risk
+  adult_major_risk
+  adult_reject [result="eligible=false,reason=too_many_accidents_adult"]
+
+  age_adult -> adult_clean [cond="accidents_5y == 0"]
+  age_adult -> adult_minor_risk [cond="accidents_5y == 1"]
+  age_adult -> adult_major_risk [cond="accidents_5y == 2 || accidents_5y == 3"]
+  age_adult -> adult_reject [cond="accidents_5y > 3"]
+
+  senior_clean
+  senior_risk
+  senior_reject [result="eligible=false,reason=senior_safety_risk"]
+
+  age_senior -> senior_clean [cond="accidents_5y == 0"]
+  age_senior -> senior_risk [cond="accidents_5y == 1"]
+  age_senior -> senior_reject [cond="accidents_5y > 1"]
+
+  # Level 3: Moving Violations / Tickets (Past 3 Years)
+  t_clean
+  t_warn
+  t_severe [result="eligible=false,reason=high_violations"]
+
+  teen_clean -> t_clean [cond="tickets_3y == 0"]
+  teen_clean -> t_warn [cond="tickets_3y == 1"]
+  teen_clean -> t_severe [cond="tickets_3y > 1"]
+
+  teen_risk -> t_warn [cond="tickets_3y == 0"]
+  teen_risk -> t_severe [cond="tickets_3y > 0"]
+
+  young_clean -> t_clean [cond="tickets_3y == 0"]
+  young_clean -> t_warn [cond="tickets_3y > 0 && tickets_3y <= 2"]
+  young_clean -> t_severe [cond="tickets_3y > 2"]
+
+  young_risk -> t_warn [cond="tickets_3y == 0"]
+  young_risk -> t_severe [cond="tickets_3y > 0"]
+
+  adult_clean -> t_clean [cond="tickets_3y <= 1"]
+  adult_clean -> t_warn [cond="tickets_3y > 1 && tickets_3y <= 3"]
+  adult_clean -> t_severe [cond="tickets_3y > 3"]
+
+  adult_minor_risk -> t_warn [cond="tickets_3y <= 2"]
+  adult_minor_risk -> t_severe [cond="tickets_3y > 2"]
+
+  adult_major_risk -> t_warn [cond="tickets_3y == 0"]
+  adult_major_risk -> t_severe [cond="tickets_3y > 0"]
+
+  senior_clean -> t_clean [cond="tickets_3y == 0"]
+  senior_clean -> t_warn [cond="tickets_3y >= 1 && tickets_3y <= 2"]
+  senior_clean -> t_severe [cond="tickets_3y > 2"]
+
+  senior_risk -> t_warn [cond="tickets_3y == 0"]
+  senior_risk -> t_severe [cond="tickets_3y > 0"]
+
+  # Level 4: Vehicle Value Bracket
+  v_eco
+  v_std
+  v_lux
+  v_exotic [result="eligible=false,reason=vehicle_value_too_high"]
+
+  t_clean -> v_eco [cond="vehicle_value < 20000"]
+  t_clean -> v_std [cond="vehicle_value >= 20000 && vehicle_value < 50000"]
+  t_clean -> v_lux [cond="vehicle_value >= 50000 && vehicle_value < 100000"]
+  t_clean -> v_exotic [cond="vehicle_value >= 100000"]
+
+  t_warn -> v_eco [cond="vehicle_value < 20000"]
+  t_warn -> v_std [cond="vehicle_value >= 20000 && vehicle_value < 50000"]
+  t_warn -> v_lux [cond="vehicle_value >= 50000 && vehicle_value < 100000"]
+  t_warn -> v_exotic [cond="vehicle_value >= 100000"]
+
+  # Level 5: Credit Score Tier (Insurance Score)
+  c_excellent
+  c_good
+  c_poor
+
+  v_eco -> c_excellent [cond="credit_score >= 750"]
+  v_eco -> c_good [cond="credit_score >= 600 && credit_score < 750"]
+  v_eco -> c_poor [cond="credit_score < 600"]
+
+  v_std -> c_excellent [cond="credit_score >= 750"]
+  v_std -> c_good [cond="credit_score >= 600 && credit_score < 750"]
+  v_std -> c_poor [cond="credit_score < 600"]
+
+  v_lux -> c_excellent [cond="credit_score >= 750"]
+  v_lux -> c_good [cond="credit_score >= 650 && credit_score < 750"]
+  v_lux -> reject_lux_poor_credit [cond="credit_score < 650"]
+
+  reject_lux_poor_credit [result="eligible=false,reason=luxury_requires_good_credit"]
+
+  # Level 6: Output Assignments
+  premium_tier_1 [result="eligible=true,premium_modifier=0.7,plan=preferred"]
+  premium_tier_2 [result="eligible=true,premium_modifier=1.0,plan=standard"]
+  premium_tier_3 [result="eligible=true,premium_modifier=1.5,plan=standard"]
+  premium_tier_4 [result="eligible=true,premium_modifier=2.2,plan=high_risk"]
+  premium_tier_5 [result="eligible=true,premium_modifier=3.5,plan=state_minimum_only"]
+
+  c_excellent -> premium_tier_1 [cond="vehicle_value < 50000"]
+  c_excellent -> premium_tier_2 [cond="vehicle_value >= 50000"]
+
+  c_good -> premium_tier_2 [cond="vehicle_value < 20000"]
+  c_good -> premium_tier_3 [cond="vehicle_value >= 20000 && vehicle_value < 50000"]
+  c_good -> premium_tier_4 [cond="vehicle_value >= 50000"]
+
+  c_poor -> premium_tier_4 [cond="vehicle_value < 20000"]
+  c_poor -> premium_tier_5 [cond="vehicle_value >= 20000"]
+}

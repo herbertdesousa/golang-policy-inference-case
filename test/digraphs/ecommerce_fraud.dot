@@ -1,0 +1,98 @@
+digraph EcommerceFraud {
+  start [result=""]
+
+  # Level 1: Account Age & Trust Base
+  acc_guest
+  acc_new
+  acc_established
+  acc_vip
+
+  start -> acc_guest [cond="account_age_days == 0"]
+  start -> acc_new [cond="account_age_days > 0 && account_age_days <= 30"]
+  start -> acc_established [cond="account_age_days > 30 && total_past_purchases < 10"]
+  start -> acc_vip [cond="account_age_days > 30 && total_past_purchases >= 10"]
+
+  # Level 2: Velocity Checks (Orders in last 24h)
+  vel_high_reject [result="approved=false,action=block,reason=velocity_abuse"]
+  
+  acc_guest -> vel_high_reject [cond="orders_24h > 2"]
+  acc_guest -> guest_cart [cond="orders_24h <= 2"]
+
+  acc_new -> vel_high_reject [cond="orders_24h > 3"]
+  acc_new -> new_cart [cond="orders_24h <= 3"]
+
+  acc_established -> vel_high_reject [cond="orders_24h > 5"]
+  acc_established -> est_cart [cond="orders_24h <= 5"]
+
+  acc_vip -> vel_high_reject [cond="orders_24h > 10"]
+  acc_vip -> vip_cart [cond="orders_24h <= 10"]
+
+  # Level 3: Cart Value Analysis
+  cart_micro
+  cart_standard
+  cart_high
+  cart_extreme
+
+  guest_cart -> cart_micro [cond="cart_value <= 50"]
+  guest_cart -> cart_standard [cond="cart_value > 50 && cart_value <= 200"]
+  guest_cart -> cart_high [cond="cart_value > 200 && cart_value <= 1000"]
+  guest_cart -> cart_extreme [cond="cart_value > 1000"]
+
+  new_cart -> cart_micro [cond="cart_value <= 50"]
+  new_cart -> cart_standard [cond="cart_value > 50 && cart_value <= 300"]
+  new_cart -> cart_high [cond="cart_value > 300 && cart_value <= 1500"]
+  new_cart -> cart_extreme [cond="cart_value > 1500"]
+
+  est_cart -> cart_micro [cond="cart_value <= 100"]
+  est_cart -> cart_standard [cond="cart_value > 100 && cart_value <= 500"]
+  est_cart -> cart_high [cond="cart_value > 500 && cart_value <= 3000"]
+  est_cart -> cart_extreme [cond="cart_value > 3000"]
+
+  vip_cart -> cart_standard [cond="cart_value <= 1000"]
+  vip_cart -> cart_high [cond="cart_value > 1000 && cart_value <= 5000"]
+  vip_cart -> cart_extreme [cond="cart_value > 5000"]
+
+  # Level 4: Geographic & IP Mismatch Checks
+  geo_match
+  geo_mismatch
+
+  cart_micro -> geo_match [cond="ip_country == shipping_country"]
+  cart_micro -> geo_mismatch [cond="ip_country != shipping_country"]
+
+  cart_standard -> geo_match [cond="ip_country == shipping_country"]
+  cart_standard -> geo_mismatch [cond="ip_country != shipping_country"]
+
+  cart_high -> geo_match [cond="ip_country == shipping_country"]
+  cart_high -> geo_mismatch [cond="ip_country != shipping_country"]
+
+  cart_extreme -> geo_match [cond="ip_country == shipping_country"]
+  cart_extreme -> geo_mismatch [cond="ip_country != shipping_country"]
+
+  # Level 5: Device Trust & VPN Usage
+  vpn_reject [result="approved=false,action=block,reason=vpn_geo_mismatch"]
+  
+  geo_match -> device_check_safe [cond="is_vpn == false"]
+  geo_match -> device_check_warn [cond="is_vpn == true"]
+
+  geo_mismatch -> vpn_reject [cond="is_vpn == true"]
+  geo_mismatch -> device_check_critical [cond="is_vpn == false"]
+
+  # Level 6: Device Scoring
+  device_check_safe -> approve_fast [cond="device_trust_score >= 80"]
+  device_check_safe -> challenge_3ds [cond="device_trust_score >= 50 && device_trust_score < 80"]
+  device_check_safe -> review_manual [cond="device_trust_score < 50"]
+
+  device_check_warn -> challenge_3ds [cond="device_trust_score >= 70"]
+  device_check_warn -> review_manual [cond="device_trust_score >= 40 && device_trust_score < 70"]
+  device_check_warn -> reject_device [cond="device_trust_score < 40"]
+
+  device_check_critical -> challenge_3ds [cond="device_trust_score >= 90"]
+  device_check_critical -> review_manual [cond="device_trust_score >= 60 && device_trust_score < 90"]
+  device_check_critical -> reject_device [cond="device_trust_score < 60"]
+
+  # Final Leaves
+  approve_fast [result="approved=true,action=process_payment,fraud_tier=low"]
+  challenge_3ds [result="approved=false,action=trigger_3ds,fraud_tier=medium"]
+  review_manual [result="approved=false,action=manual_review,fraud_tier=high"]
+  reject_device [result="approved=false,action=block,reason=low_device_trust"]
+}

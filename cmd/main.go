@@ -37,11 +37,13 @@ func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
 
 	graphAst, err := gographviz.ParseString(dotString)
 	if err != nil {
+		log.Printf("Parse error: %v", err)
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	graph := gographviz.NewGraph()
 	if err := gographviz.Analyse(graphAst, graph); err != nil {
+		log.Printf("Analysis error: %v", err)
 		return nil, fmt.Errorf("analysis error: %w", err)
 	}
 
@@ -63,6 +65,7 @@ func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
 
 		program, err := expr.Compile(cond, expr.Env(env))
 		if err != nil {
+			log.Printf("Failed to compile condition '%s': %v", cond, err)
 			return nil, fmt.Errorf("failed to compile condition '%s': %w", cond, err)
 		}
 
@@ -73,6 +76,7 @@ func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
 	}
 
 	if hasCycle(engine.Adjacency) {
+		log.Printf("Invalid policy graph: an infinite loop (cycle) was detected")
 		return nil, fmt.Errorf("invalid policy graph: an infinite loop (cycle) was detected")
 	}
 
@@ -191,15 +195,20 @@ func handleInfer(w http.ResponseWriter, r *http.Request) {
 
 	var req InferRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Failed to decode json: %v", err)
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	engine, err := NewPolicyEngine(req.PolicyDot, req.Input)
 	if err != nil {
+		log.Printf("Failed to initialize policy: %v", err)
 		http.Error(w, "Failed to initialize policy: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Kind high log, but useful to track policy <> input
+	log.Printf("Evaluating policy: %v with input: %v", req.PolicyDot, req.Input)
 
 	_, resultStr := engine.Evaluate("start", req.Input)
 
@@ -209,6 +218,7 @@ func handleInfer(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Failed to encode response: %v", err)
 		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
 	}
 }
