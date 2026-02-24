@@ -5,8 +5,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 125M
+          cpus: "0.1"
+          memory: 250M
     ports:
       - "8080:8080"
     restart: always
