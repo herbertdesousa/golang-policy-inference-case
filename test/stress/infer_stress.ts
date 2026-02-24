@@ -9,13 +9,17 @@ export const options = {
     http_req_failed: ["rate<0.01"],
   },
   scenarios: {
-    constant_request_rate: {
-      executor: "constant-arrival-rate",
-      rate: 50,
+    ramping_request_rate: {
+      executor: "ramping-arrival-rate",
+      startRate: 50,
       timeUnit: "1s",
-      duration: "60s",
       preAllocatedVUs: 50,
-      maxVUs: 100,
+      maxVUs: 500,
+      stages: [
+        { target: 50, duration: "30s" },
+        { target: 100, duration: "10s" },
+        { target: 200, duration: "30s" },
+      ],
     },
   },
 };

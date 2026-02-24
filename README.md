@@ -45,3 +45,9 @@ Benchmarked at **50 RPS** against a 6–7 node deep graph with ~4-7 conditions (
 | Configuration    | p(90)  | p(95)  | p(99)  | avg    | min      | max     |
 | ---------------- | ------ | ------ | ------ | ------ | -------- | ------- |
 | CPU 0.5 + 250 MB | 2.40ms | 2.51ms | 3.06ms | 1.96ms | 981.81µs | 10.38ms |
+
+Take a little higher with **200RPS**
+
+| Configuration                  | p(90)    | p(95)    | p(99) | avg      | min      | max   |
+| ------------------------------ | -------- | -------- | ----- | -------- | -------- | ----- |
+| CPU 0.5 + 256 MB + 2 instances | 339.22ms | 619.07ms | 1.12s | 117.92ms | 300.81µs | 1.43s |
