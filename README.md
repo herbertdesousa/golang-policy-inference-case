@@ -3,5 +3,5 @@
 [x] Criar core dump
 [x] Criar http server
 [x] Criar teste de integração
-[ ] Criar teste de carga
+[x] Criar teste de carga
 [ ] Melhoria de performance e legibilidade

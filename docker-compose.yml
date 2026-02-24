@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: golang-policy-inference-case:latest
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 125M
+    ports:
+      - "8080:8080"
+    restart: always
