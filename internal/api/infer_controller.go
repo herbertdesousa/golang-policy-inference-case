@@ -2,12 +2,19 @@ package api
 
 import (
 	"encoding/json"
-	"golang-policy-inference-case/internal/policy"
 	"log"
 	"net/http"
 )
 
-func HandleInfer(w http.ResponseWriter, r *http.Request) {
+type InferController struct {
+	inferService *InferService
+}
+
+func NewInferController(inferService *InferService) *InferController {
+	return &InferController{inferService: inferService}
+}
+
+func (c *InferController) HandleInfer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -20,19 +27,12 @@ func HandleInfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engine, err := policy.NewPolicyEngine(req.PolicyDot, req.Input)
+	resp, err := c.inferService.Evaluate(req)
 	if err != nil {
-		log.Printf("Failed to initialize policy: %v", err)
-		http.Error(w, "Failed to initialize policy: "+err.Error(), http.StatusBadRequest)
+		log.Printf("Failed to evaluate policy: %v", err)
+		http.Error(w, "Failed to evaluate policy: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	// Kind high log, but useful to track policy <> input
-	log.Printf("Evaluating policy: %v with input: %v", req.PolicyDot, req.Input)
-
-	_, resultStr := engine.Evaluate("start", req.Input)
-
-	resp := NewInferResponseDto(resultStr, req.Input)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {

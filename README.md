@@ -42,12 +42,19 @@ Content-Type: application/json
 
 Benchmarked at **50 RPS** against a 6–7 node deep graph with ~4-7 conditions (with IN, NOT, math) per edge:
 
-| Configuration    | p(90)  | p(95)  | p(99)  | avg    | min      | max     |
-| ---------------- | ------ | ------ | ------ | ------ | -------- | ------- |
-| CPU 0.5 + 250 MB | 2.40ms | 2.51ms | 3.06ms | 1.96ms | 981.81µs | 10.38ms |
+| Configuration                                    | p(90)    | p(95)    | p(99)  | avg      | min      | max     |
+| ------------------------------------------------ | -------- | -------- | ------ | -------- | -------- | ------- |
+| CPU 0.5 + 250 MB                                 | 2.40ms   | 2.51ms   | 3.06ms | 1.96ms   | 981.81µs | 10.38ms |
+| CPU 0.25 + 125 MB + 2 instances + instance cache | 900.58µs | 977.96µs | 1.63ms | 751.01µs | 357.13µs | 15.87ms |
+
+Question: Option 2 make it worth?
+
+- Infra cost
+- Code base complexitity increase
 
 Take a little higher with **200RPS**
 
-| Configuration                  | p(90)    | p(95)    | p(99) | avg      | min      | max   |
-| ------------------------------ | -------- | -------- | ----- | -------- | -------- | ----- |
-| CPU 0.5 + 256 MB + 2 instances | 339.22ms | 619.07ms | 1.12s | 117.92ms | 300.81µs | 1.43s |
+| Configuration                                    | p(90)  | p(95)    | p(99)  | avg      | min      | max     |
+| ------------------------------------------------ | ------ | -------- | ------ | -------- | -------- | ------- |
+| CPU 0.25 + 125 MB + 2 instances                  | 505ms  | 680.74ms | 1.1s   | 162.15ms | 1.06ms   | 1.71s   |
+| CPU 0.25 + 125 MB + 2 instances + instance cache | 1.03ms | 1.21ms   | 1.77ms | 736.87µs | 277.74µs | 10.45ms |
