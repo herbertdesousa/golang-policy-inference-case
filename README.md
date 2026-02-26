@@ -40,19 +40,8 @@ Content-Type: application/json
 
 ## Performance
 
-Benchmarked at **30 RPS** against a 6–7 node deep graph with ~2 conditions per edge:
+Benchmarked at **50 RPS** against a 6–7 node deep graph with ~4-7 conditions (with IN, NOT, math) per edge:
 
-| Resources          | p(90)   | p(95)   | p(99)   | avg     | min      | max      |
-| ------------------ | ------- | ------- | ------- | ------- | -------- | -------- |
-| 0.5 CPU / 250M mem | 1.60 ms | 1.70 ms | 2.00 ms | 1.23 ms | 666.27µs | 16.12 ms |
-| 0.1 CPU / 125M mem | 1.60 ms | 1.72 ms | 1.98 ms | 1.25 ms | 664.85µs | 35.95 ms |
-| 0.1 CPU / 250M mem | 1.58 ms | 1.66 ms | 1.94 ms | 1.23 ms | 674.66µs | 21.25 ms |
-| 0.5 CPU / 125M mem | 1.61 ms | 1.73 ms | 2.03 ms | 1.24 ms | 681.71µs | 15.24 ms |
-
-## Roadmap
-
-- [x] Core engine (graph traversal + expression evaluation)
-- [x] HTTP server
-- [x] Integration tests
-- [x] Stress tests
-- [x] Performance improvements & code readability
+| Configuration    | p(90)  | p(95)  | p(99)  | avg    | min      | max     |
+| ---------------- | ------ | ------ | ------ | ------ | -------- | ------- |
+| CPU 0.5 + 250 MB | 2.40ms | 2.51ms | 3.06ms | 1.96ms | 981.81µs | 10.38ms |

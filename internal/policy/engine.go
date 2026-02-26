@@ -23,6 +23,8 @@ type PolicyEngine struct {
 func NewPolicyEngine(dotString string, env interface{}) (*PolicyEngine, error) {
 	dotString = strings.ReplaceAll(dotString, "result=", "comment=")
 	dotString = strings.ReplaceAll(dotString, "cond=", "label=")
+	dotString = strings.ReplaceAll(dotString, " NOT ", " not ")
+	dotString = strings.ReplaceAll(dotString, " IN ", " in ")
 
 	graphAst, err := gographviz.ParseString(dotString)
 	if err != nil {

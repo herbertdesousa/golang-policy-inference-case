@@ -1,0 +1,177 @@
+digraph HealthInsurancePolicy {
+  start [result=""]
+
+  # Level 1: Residency & Age Eligibility
+  elig_minor
+  elig_young_adult
+  elig_adult
+  elig_middle_aged
+  elig_senior
+  reject_nonresident [result="eligible=false,reason=non_us_resident"]
+  reject_age_invalid [result="eligible=false,reason=invalid_age"]
+
+  start -> reject_nonresident       [cond="us_resident == false"]
+  start -> reject_age_invalid        [cond="us_resident == true && applicant_age < 0"]
+  start -> elig_minor                [cond="us_resident == true && applicant_age >= 0 && applicant_age < 18"]
+  start -> elig_young_adult          [cond="us_resident == true && applicant_age >= 18 && applicant_age <= 26"]
+  start -> elig_adult                [cond="us_resident == true && applicant_age > 26 && applicant_age <= 45"]
+  start -> elig_middle_aged          [cond="us_resident == true && applicant_age > 45 && applicant_age <= 64"]
+  start -> elig_senior               [cond="us_resident == true && applicant_age >= 65"]
+
+  # Level 2: Enrollment Type — driven by age group
+  enroll_chip
+  enroll_dependent
+  enroll_marketplace
+  enroll_employer
+  enroll_medicare
+  reject_minor_no_parent [result="eligible=false,reason=minor_needs_guardian"]
+
+  elig_minor -> enroll_chip           [cond="household_income_pct_fpl <= 200 && guardian_present == true"]
+  elig_minor -> enroll_dependent      [cond="household_income_pct_fpl > 200 && guardian_present == true"]
+  elig_minor -> reject_minor_no_parent [cond="guardian_present == false"]
+
+  elig_young_adult -> enroll_dependent  [cond="parent_has_coverage == true && applicant_age <= 26"]
+  elig_young_adult -> enroll_employer   [cond="parent_has_coverage == false && employer_offer == true"]
+  elig_young_adult -> enroll_marketplace [cond="parent_has_coverage == false && employer_offer == false && household_income_pct_fpl > 138"]
+  elig_young_adult -> enroll_chip       [cond="parent_has_coverage == false && employer_offer == false && household_income_pct_fpl <= 138"]
+
+  elig_adult -> enroll_employer         [cond="employer_offer == true && employer_coverage_pct >= 60"]
+  elig_adult -> enroll_marketplace      [cond="employer_offer == false && household_income_pct_fpl > 138"]
+  elig_adult -> enroll_marketplace      [cond="employer_offer == true && employer_coverage_pct < 60"]
+  elig_adult -> enroll_chip             [cond="employer_offer == false && household_income_pct_fpl <= 138 && state_expanded_medicaid == true"]
+
+  elig_middle_aged -> enroll_employer   [cond="employer_offer == true && employer_coverage_pct >= 60"]
+  elig_middle_aged -> enroll_marketplace [cond="employer_offer == false || employer_coverage_pct < 60"]
+  elig_middle_aged -> enroll_chip       [cond="employer_offer == false && household_income_pct_fpl <= 138 && state_expanded_medicaid == true"]
+
+  elig_senior -> enroll_medicare        [cond="applicant_age >= 65"]
+
+  # Level 3: Pre-existing Condition & BMI Screening
+  screen_clean
+  screen_managed
+  screen_complex
+  screen_critical
+  reject_uninsurable [result="eligible=false,reason=uninsurable_condition"]
+
+  enroll_chip -> screen_clean           [cond="chronic_conditions == 0 && bmi >= 18.5 && bmi < 30"]
+  enroll_chip -> screen_managed         [cond="chronic_conditions == 1 && bmi >= 18.5 && bmi < 35"]
+  enroll_chip -> screen_complex         [cond="chronic_conditions >= 2 && chronic_conditions <= 3"]
+  enroll_chip -> screen_critical        [cond="chronic_conditions > 3"]
+
+  enroll_dependent -> screen_clean      [cond="chronic_conditions == 0 && bmi >= 18.5 && bmi < 30"]
+  enroll_dependent -> screen_managed    [cond="chronic_conditions == 1 && bmi < 35"]
+  enroll_dependent -> screen_complex    [cond="chronic_conditions >= 2 && chronic_conditions <= 3"]
+  enroll_dependent -> screen_critical   [cond="chronic_conditions > 3"]
+
+  enroll_marketplace -> screen_clean    [cond="chronic_conditions == 0 && bmi >= 18.5 && bmi < 30"]
+  enroll_marketplace -> screen_managed  [cond="chronic_conditions == 1 && bmi >= 18.5 && bmi < 35"]
+  enroll_marketplace -> screen_complex  [cond="(chronic_conditions == 2 || chronic_conditions == 3) && bmi < 40"]
+  enroll_marketplace -> screen_critical [cond="chronic_conditions > 3 || bmi >= 40"]
+
+  enroll_employer -> screen_clean       [cond="chronic_conditions == 0"]
+  enroll_employer -> screen_managed     [cond="chronic_conditions >= 1 && chronic_conditions <= 2"]
+  enroll_employer -> screen_complex     [cond="chronic_conditions > 2 && chronic_conditions <= 4"]
+  enroll_employer -> screen_critical    [cond="chronic_conditions > 4"]
+
+  enroll_medicare -> screen_clean       [cond="chronic_conditions <= 1"]
+  enroll_medicare -> screen_managed     [cond="chronic_conditions >= 2 && chronic_conditions <= 3"]
+  enroll_medicare -> screen_complex     [cond="chronic_conditions >= 4 && chronic_conditions <= 6"]
+  enroll_medicare -> screen_critical    [cond="chronic_conditions > 6"]
+  enroll_medicare -> reject_uninsurable [cond="terminal_illness == true && hospice_care == false"]
+
+  # Level 4: Tobacco & Lifestyle Risk Factor
+  risk_standard
+  risk_elevated
+  risk_high
+  risk_extreme
+
+  screen_clean -> risk_standard         [cond="tobacco_user == false && alcohol_units_week <= 14 && exercise_days_week >= 3"]
+  screen_clean -> risk_elevated         [cond="tobacco_user == false && (alcohol_units_week > 14 || exercise_days_week < 3)"]
+  screen_clean -> risk_high             [cond="tobacco_user == true && years_smoking <= 5"]
+  screen_clean -> risk_extreme          [cond="tobacco_user == true && years_smoking > 5"]
+
+  screen_managed -> risk_standard       [cond="tobacco_user == false && alcohol_units_week <= 7 && exercise_days_week >= 3"]
+  screen_managed -> risk_elevated       [cond="tobacco_user == false && (alcohol_units_week > 7 || exercise_days_week < 3)"]
+  screen_managed -> risk_high           [cond="tobacco_user == true && years_smoking <= 10"]
+  screen_managed -> risk_extreme        [cond="tobacco_user == true && years_smoking > 10"]
+
+  screen_complex -> risk_elevated       [cond="tobacco_user == false && alcohol_units_week <= 14"]
+  screen_complex -> risk_high           [cond="tobacco_user == false && alcohol_units_week > 14"]
+  screen_complex -> risk_high           [cond="tobacco_user == true && years_smoking <= 5"]
+  screen_complex -> risk_extreme        [cond="tobacco_user == true && years_smoking > 5"]
+
+  screen_critical -> risk_high          [cond="tobacco_user == false"]
+  screen_critical -> risk_extreme       [cond="tobacco_user == true"]
+
+  # Level 5: Income Subsidy & Plan Tier Routing
+  subsidy_full
+  subsidy_partial
+  subsidy_none
+  subsidy_exempt
+
+  risk_standard -> subsidy_full         [cond="household_income_pct_fpl <= 150"]
+  risk_standard -> subsidy_partial      [cond="household_income_pct_fpl > 150 && household_income_pct_fpl <= 400"]
+  risk_standard -> subsidy_none         [cond="household_income_pct_fpl > 400"]
+  risk_standard -> subsidy_exempt       [cond="employer_offer == true && employer_coverage_pct >= 80"]
+
+  risk_elevated -> subsidy_full         [cond="household_income_pct_fpl <= 150"]
+  risk_elevated -> subsidy_partial      [cond="household_income_pct_fpl > 150 && household_income_pct_fpl <= 400"]
+  risk_elevated -> subsidy_none         [cond="household_income_pct_fpl > 400"]
+  risk_elevated -> subsidy_exempt       [cond="employer_offer == true && employer_coverage_pct >= 80"]
+
+  risk_high -> subsidy_full             [cond="household_income_pct_fpl <= 150"]
+  risk_high -> subsidy_partial          [cond="household_income_pct_fpl > 150 && household_income_pct_fpl <= 300"]
+  risk_high -> subsidy_none             [cond="household_income_pct_fpl > 300"]
+
+  risk_extreme -> subsidy_partial       [cond="household_income_pct_fpl <= 200"]
+  risk_extreme -> subsidy_none          [cond="household_income_pct_fpl > 200"]
+
+  # Level 6: Deductible & Network Preference
+  net_hmo
+  net_ppo
+  net_epo
+  net_hdhp
+
+  subsidy_full -> net_hmo               [cond="preferred_network == 'hmo' || preferred_network == 'any'"]
+  subsidy_full -> net_epo               [cond="preferred_network == 'epo'"]
+  subsidy_full -> net_hdhp              [cond="preferred_network == 'hdhp'"]
+
+  subsidy_partial -> net_hmo            [cond="preferred_network == 'hmo'"]
+  subsidy_partial -> net_ppo            [cond="preferred_network == 'ppo' || preferred_network == 'any'"]
+  subsidy_partial -> net_epo            [cond="preferred_network == 'epo'"]
+  subsidy_partial -> net_hdhp           [cond="preferred_network == 'hdhp'"]
+
+  subsidy_none -> net_hmo               [cond="preferred_network == 'hmo'"]
+  subsidy_none -> net_ppo               [cond="preferred_network == 'ppo' || preferred_network == 'any'"]
+  subsidy_none -> net_hdhp              [cond="preferred_network == 'hdhp' || preferred_network == 'epo'"]
+
+  subsidy_exempt -> net_ppo             [cond="preferred_network != 'hmo' && preferred_network != 'hdhp'"]
+  subsidy_exempt -> net_hmo             [cond="preferred_network == 'hmo'"]
+  subsidy_exempt -> net_hdhp            [cond="preferred_network == 'hdhp'"]
+
+  # Level 7: Final Plan & Premium Output
+  plan_bronze    [result="eligible=true,plan=bronze,deductible=7000,premium_modifier=0.6,subsidy_applied=partial"]
+  plan_silver    [result="eligible=true,plan=silver,deductible=4500,premium_modifier=0.85,subsidy_applied=partial"]
+  plan_gold      [result="eligible=true,plan=gold,deductible=1500,premium_modifier=1.1,subsidy_applied=none"]
+  plan_platinum  [result="eligible=true,plan=platinum,deductible=0,premium_modifier=1.4,subsidy_applied=none"]
+  plan_hsa_hdhp  [result="eligible=true,plan=hdhp_hsa,deductible=8000,premium_modifier=0.5,hsa_eligible=true"]
+  plan_chip_enroll [result="eligible=true,plan=chip,deductible=100,premium_modifier=0.1,program=chip"]
+  reject_risk_too_high [result="eligible=false,reason=risk_score_exceeds_threshold"]
+
+  net_hmo -> plan_bronze                [cond="risk_score <= 30 && subsidy_applied == 'full'"]
+  net_hmo -> plan_silver                [cond="risk_score > 30 && risk_score <= 60"]
+  net_hmo -> plan_gold                  [cond="risk_score > 60"]
+  net_hmo -> plan_chip_enroll           [cond="enroll_type == 'chip'"]
+
+  net_ppo -> plan_silver                [cond="risk_score <= 40"]
+  net_ppo -> plan_gold                  [cond="risk_score > 40 && risk_score <= 70"]
+  net_ppo -> plan_platinum              [cond="risk_score > 70 && household_income_pct_fpl > 300"]
+  net_ppo -> reject_risk_too_high       [cond="risk_score > 90"]
+
+  net_epo -> plan_bronze                [cond="risk_score <= 25"]
+  net_epo -> plan_silver                [cond="risk_score > 25 && risk_score <= 55"]
+  net_epo -> plan_gold                  [cond="risk_score > 55"]
+
+  net_hdhp -> plan_hsa_hdhp             [cond="risk_score <= 50 && chronic_conditions <= 1"]
+  net_hdhp -> plan_bronze               [cond="risk_score > 50 || chronic_conditions > 1"]
+}

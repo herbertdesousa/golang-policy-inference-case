@@ -1,0 +1,143 @@
+digraph TravelVisaPolicy {
+  start [result=""]
+
+  # Level 1: Passport & Nationality Screening
+  nat_visa_free
+  nat_visa_required
+  nat_high_risk
+  nat_sanctioned
+  reject_sanctioned [result="approved=false,reason=sanctioned_country_national"]
+
+  start -> reject_sanctioned            [cond="passport_country IN ['KP', 'IR', 'SY', 'CU'] && waiver_approved == false"]
+  start -> nat_sanctioned               [cond="passport_country IN ['KP', 'IR', 'SY', 'CU'] && waiver_approved == true"]
+  start -> nat_visa_free                [cond="passport_country IN visa_waiver_program_list && prior_visa_violations == 0"]
+  start -> nat_high_risk                [cond="passport_country IN high_risk_country_list && passport_country NOT IN visa_waiver_program_list"]
+  start -> nat_visa_required            [cond="passport_country NOT IN visa_waiver_program_list && passport_country NOT IN high_risk_country_list && passport_country NOT IN ['KP','IR','SY','CU']"]
+  start -> nat_visa_required            [cond="passport_country IN visa_waiver_program_list && prior_visa_violations >= 1"]
+
+  # Level 2: Visa Category Selection
+  cat_tourist
+  cat_business
+  cat_student
+  cat_transit
+  cat_diplomatic
+  reject_invalid_category [result="approved=false,reason=invalid_visa_category_for_nationality"]
+
+  nat_visa_free -> cat_tourist          [cond="purpose == 'tourism' && intended_stay_days <= 90"]
+  nat_visa_free -> cat_business         [cond="purpose == 'business' && intended_stay_days <= 90"]
+  nat_visa_free -> cat_transit          [cond="purpose == 'transit' && intended_stay_days <= 5"]
+  nat_visa_free -> cat_student          [cond="purpose == 'study' && institution_acceptance_letter == true"]
+
+  nat_visa_required -> cat_tourist      [cond="purpose == 'tourism'"]
+  nat_visa_required -> cat_business     [cond="purpose == 'business'"]
+  nat_visa_required -> cat_student      [cond="purpose == 'study' && institution_acceptance_letter == true"]
+  nat_visa_required -> cat_transit      [cond="purpose == 'transit'"]
+  nat_visa_required -> reject_invalid_category [cond="purpose == 'study' && institution_acceptance_letter == false"]
+
+  nat_high_risk -> cat_tourist          [cond="purpose == 'tourism' && sponsor_letter == true"]
+  nat_high_risk -> cat_business         [cond="purpose == 'business' && host_company_letter == true && business_registration == true"]
+  nat_high_risk -> cat_student          [cond="purpose == 'study' && institution_acceptance_letter == true && financial_guarantee == true"]
+  nat_high_risk -> cat_transit          [cond="purpose == 'transit' && onward_ticket == true && intended_stay_days <= 2"]
+  nat_high_risk -> reject_invalid_category [cond="sponsor_letter == false && host_company_letter == false && institution_acceptance_letter == false"]
+
+  nat_sanctioned -> cat_diplomatic      [cond="diplomatic_passport == true && purpose == 'diplomatic'"]
+  nat_sanctioned -> cat_humanitarian    [cond="purpose == 'humanitarian' && un_travel_document == true"]
+  nat_sanctioned -> reject_invalid_category [cond="diplomatic_passport == false && un_travel_document == false"]
+
+  cat_humanitarian [result="approved=conditional,reason=humanitarian_exception,review_level=senior"]
+
+  # Level 3: Financial Solvency & Ties to Home Country
+  fin_strong
+  fin_adequate
+  fin_weak
+  fin_reject [result="approved=false,reason=insufficient_financial_proof"]
+
+  cat_tourist -> fin_strong             [cond="bank_balance_usd >= 5000 && property_ownership == true && employment_status == 'employed'"]
+  cat_tourist -> fin_adequate           [cond="bank_balance_usd >= 2000 && bank_balance_usd < 5000 && (employment_status == 'employed' || sponsor_letter == true)"]
+  cat_tourist -> fin_weak               [cond="bank_balance_usd >= 500 && bank_balance_usd < 2000 && sponsor_letter == true"]
+  cat_tourist -> fin_reject             [cond="bank_balance_usd < 500 || (sponsor_letter == false && employment_status == 'unemployed')"]
+
+  cat_business -> fin_strong            [cond="company_annual_revenue >= 100000 && business_registration == true && tax_returns_submitted == true"]
+  cat_business -> fin_adequate          [cond="company_annual_revenue >= 30000 && company_annual_revenue < 100000 && business_registration == true"]
+  cat_business -> fin_weak              [cond="company_annual_revenue >= 10000 && company_annual_revenue < 30000 && host_company_letter == true"]
+  cat_business -> fin_reject            [cond="company_annual_revenue < 10000 || business_registration == false"]
+
+  cat_student -> fin_strong             [cond="scholarship_awarded == true || (bank_balance_usd >= 20000 && sponsor_verified == true)"]
+  cat_student -> fin_adequate           [cond="bank_balance_usd >= 8000 && bank_balance_usd < 20000 && sponsor_verified == true"]
+  cat_student -> fin_weak               [cond="bank_balance_usd >= 3000 && bank_balance_usd < 8000 && institution_guarantee == true"]
+  cat_student -> fin_reject             [cond="bank_balance_usd < 3000 && scholarship_awarded == false && sponsor_verified == false"]
+
+  cat_transit -> fin_strong             [cond="onward_ticket == true && bank_balance_usd >= 500"]
+  cat_transit -> fin_adequate           [cond="onward_ticket == true && bank_balance_usd >= 100 && bank_balance_usd < 500"]
+  cat_transit -> fin_reject             [cond="onward_ticket == false"]
+
+  cat_diplomatic -> fin_strong          [cond="diplomatic_passport == true && accreditation_verified == true"]
+
+  # Level 4: Travel History & Visa Compliance
+  hist_excellent
+  hist_good
+  hist_risky
+  hist_disqualify [result="approved=false,reason=visa_overstay_or_violation_history"]
+
+  fin_strong -> hist_excellent          [cond="prior_visa_violations == 0 && overstay_history == false && travel_countries_visited >= 5"]
+  fin_strong -> hist_good               [cond="prior_visa_violations == 0 && overstay_history == false && travel_countries_visited < 5"]
+  fin_strong -> hist_risky              [cond="prior_visa_violations == 1 && overstay_days_total <= 30"]
+  fin_strong -> hist_disqualify         [cond="prior_visa_violations > 1 || overstay_days_total > 30"]
+
+  fin_adequate -> hist_excellent        [cond="prior_visa_violations == 0 && overstay_history == false && schengen_visa_held == true"]
+  fin_adequate -> hist_good             [cond="prior_visa_violations == 0 && overstay_history == false && schengen_visa_held == false"]
+  fin_adequate -> hist_risky            [cond="prior_visa_violations == 1 && overstay_days_total <= 15"]
+  fin_adequate -> hist_disqualify       [cond="prior_visa_violations > 1 || overstay_days_total > 15"]
+
+  fin_weak -> hist_good                 [cond="prior_visa_violations == 0 && overstay_history == false"]
+  fin_weak -> hist_risky                [cond="prior_visa_violations == 0 && overstay_history == true && overstay_days_total <= 10"]
+  fin_weak -> hist_disqualify           [cond="prior_visa_violations >= 1 || overstay_days_total > 10"]
+
+  # Level 5: Security & Background Check
+  sec_clear
+  sec_flagged
+  sec_reject [result="approved=false,reason=security_check_failed"]
+
+  hist_excellent -> sec_clear           [cond="interpol_flag == false && criminal_record == false && terrorism_watch_list == false"]
+  hist_excellent -> sec_flagged         [cond="interpol_flag == false && criminal_record == true && offense_type IN ['minor', 'traffic'] && years_since_offense >= 5"]
+  hist_excellent -> sec_reject          [cond="interpol_flag == true || terrorism_watch_list == true || (criminal_record == true && offense_type IN ['violent', 'drug_trafficking'])"]
+
+  hist_good -> sec_clear                [cond="interpol_flag == false && criminal_record == false && terrorism_watch_list == false"]
+  hist_good -> sec_flagged              [cond="interpol_flag == false && criminal_record == true && offense_type == 'minor' && years_since_offense >= 7"]
+  hist_good -> sec_reject               [cond="interpol_flag == true || terrorism_watch_list == true || (criminal_record == true && offense_type != 'minor')"]
+
+  hist_risky -> sec_clear               [cond="interpol_flag == false && criminal_record == false && terrorism_watch_list == false && biometric_match == true"]
+  hist_risky -> sec_reject              [cond="interpol_flag == true || terrorism_watch_list == true || criminal_record == true || biometric_match == false"]
+
+  # Level 6: Interview & Document Completeness
+  doc_complete
+  doc_partial
+  doc_incomplete_reject [result="approved=false,reason=required_documents_missing"]
+
+  sec_clear -> doc_complete             [cond="passport_validity_months >= 6 && photo_id_valid == true && application_signed == true && biometrics_submitted == true"]
+  sec_clear -> doc_partial              [cond="passport_validity_months >= 3 && passport_validity_months < 6 && photo_id_valid == true && application_signed == true"]
+  sec_clear -> doc_incomplete_reject    [cond="passport_validity_months < 3 || photo_id_valid == false || application_signed == false"]
+
+  sec_flagged -> doc_complete           [cond="passport_validity_months >= 6 && photo_id_valid == true && interview_passed == true && biometrics_submitted == true && police_clearance == true"]
+  sec_flagged -> doc_partial            [cond="passport_validity_months >= 6 && interview_passed == true && police_clearance == false"]
+  sec_flagged -> doc_incomplete_reject  [cond="interview_passed == false || passport_validity_months < 6"]
+
+  # Level 7: Visa Grant & Duration
+  visa_multiple_5yr  [result="approved=true,visa_type=multiple_entry,duration_years=5,processing=standard"]
+  visa_multiple_2yr  [result="approved=true,visa_type=multiple_entry,duration_years=2,processing=standard"]
+  visa_single_6m     [result="approved=true,visa_type=single_entry,duration_months=6,processing=standard"]
+  visa_single_3m     [result="approved=true,visa_type=single_entry,duration_months=3,processing=extended_review"]
+  visa_transit_only  [result="approved=true,visa_type=transit,duration_days=5,processing=standard"]
+  visa_conditional   [result="approved=conditional,visa_type=single_entry,duration_months=3,conditions=reporting_required"]
+
+  doc_complete -> visa_multiple_5yr     [cond="hist_profile == 'excellent' && fin_profile == 'strong' && nat_category != 'high_risk'"]
+  doc_complete -> visa_multiple_2yr     [cond="hist_profile == 'excellent' && fin_profile == 'adequate'"]
+  doc_complete -> visa_multiple_2yr     [cond="hist_profile == 'good' && fin_profile == 'strong'"]
+  doc_complete -> visa_single_6m        [cond="hist_profile == 'good' && fin_profile == 'adequate'"]
+  doc_complete -> visa_single_6m        [cond="hist_profile == 'excellent' && fin_profile == 'weak'"]
+  doc_complete -> visa_transit_only     [cond="visa_category == 'transit'"]
+
+  doc_partial -> visa_single_6m         [cond="hist_profile == 'excellent' && fin_profile == 'strong'"]
+  doc_partial -> visa_single_3m         [cond="hist_profile == 'good' && fin_profile == 'adequate'"]
+  doc_partial -> visa_conditional       [cond="hist_profile == 'risky' || fin_profile == 'weak'"]
+}

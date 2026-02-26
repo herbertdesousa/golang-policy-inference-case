@@ -1,0 +1,130 @@
+digraph MedicalClaimsAdjudication {
+  start [result=""]
+
+  # Level 1: Claim Submission Validity
+  claim_valid
+  claim_duplicate
+  claim_timely_exception
+  reject_duplicate    [result="adjudicated=false,reason=duplicate_claim_detected"]
+  reject_late_filing  [result="adjudicated=false,reason=past_timely_filing_limit"]
+
+  start -> reject_duplicate             [cond="duplicate_claim_detected == true && override_duplicate == false"]
+  start -> reject_late_filing           [cond="days_since_service > 365 && timely_filing_exception == false"]
+  start -> claim_timely_exception       [cond="days_since_service > 365 && timely_filing_exception == true && exception_reason IN ['natural_disaster','system_error','provider_error']"]
+  start -> claim_valid                  [cond="days_since_service <= 365 && duplicate_claim_detected == false && claim_form_complete == true"]
+  start -> claim_valid                  [cond="days_since_service <= 180 && duplicate_claim_detected == false && claim_form_complete == true && electronic_submission == true"]
+  start -> reject_late_filing           [cond="claim_form_complete == false && corrected_claim_submitted == false"]
+
+  # Level 2: Member Eligibility & Coverage Verification
+  elig_active
+  elig_cobra
+  elig_retro
+  elig_terminated [result="adjudicated=false,reason=member_not_eligible_on_date_of_service"]
+
+  claim_valid -> elig_active            [cond="member_active_on_dos == true && coverage_type != 'cobra' && premium_paid_thru >= date_of_service"]
+  claim_valid -> elig_cobra             [cond="member_active_on_dos == true && coverage_type == 'cobra' && cobra_premium_paid == true"]
+  claim_valid -> elig_retro             [cond="member_active_on_dos == false && retroactive_enrollment_approved == true && retro_effective_date <= date_of_service"]
+  claim_valid -> elig_terminated        [cond="member_active_on_dos == false && retroactive_enrollment_approved == false"]
+  claim_valid -> elig_terminated        [cond="member_active_on_dos == true && premium_paid_thru < date_of_service && grace_period_days <= 0"]
+
+  claim_timely_exception -> elig_active [cond="member_active_on_dos == true && premium_paid_thru >= date_of_service"]
+  claim_timely_exception -> elig_terminated [cond="member_active_on_dos == false"]
+
+  # Level 3: Provider Network Status
+  prov_in_network
+  prov_out_network
+  prov_oon_emergency
+  prov_unlicensed_reject [result="adjudicated=false,reason=provider_not_licensed_or_sanctioned"]
+
+  elig_active -> prov_unlicensed_reject   [cond="provider_licensed == false || provider_sanctioned == true"]
+  elig_active -> prov_in_network          [cond="provider_licensed == true && provider_sanctioned == false && provider_network_status == 'in_network'"]
+  elig_active -> prov_oon_emergency       [cond="provider_licensed == true && provider_sanctioned == false && provider_network_status == 'out_of_network' && claim_type == 'emergency'"]
+  elig_active -> prov_out_network         [cond="provider_licensed == true && provider_sanctioned == false && provider_network_status == 'out_of_network' && claim_type != 'emergency'"]
+
+  elig_cobra -> prov_in_network           [cond="provider_licensed == true && provider_network_status == 'in_network'"]
+  elig_cobra -> prov_out_network          [cond="provider_licensed == true && provider_network_status == 'out_of_network' && claim_type != 'emergency'"]
+  elig_cobra -> prov_oon_emergency        [cond="provider_licensed == true && provider_network_status == 'out_of_network' && claim_type == 'emergency'"]
+  elig_cobra -> prov_unlicensed_reject    [cond="provider_licensed == false"]
+
+  elig_retro -> prov_in_network           [cond="provider_licensed == true && provider_network_status == 'in_network'"]
+  elig_retro -> prov_out_network          [cond="provider_licensed == true && provider_network_status == 'out_of_network'"]
+  elig_retro -> prov_unlicensed_reject    [cond="provider_licensed == false || provider_sanctioned == true"]
+
+  # Level 4: Medical Necessity & Prior Authorization
+  auth_approved
+  auth_pending
+  auth_not_required
+  auth_denied [result="adjudicated=false,reason=prior_auth_denied_or_missing"]
+
+  prov_in_network -> auth_not_required    [cond="service_requires_auth == false && experimental_treatment == false"]
+  prov_in_network -> auth_approved        [cond="service_requires_auth == true && prior_auth_status == 'approved' && auth_service_matches_claim == true"]
+  prov_in_network -> auth_pending         [cond="service_requires_auth == true && prior_auth_status == 'pending' && days_since_service <= 30"]
+  prov_in_network -> auth_denied          [cond="service_requires_auth == true && prior_auth_status IN ['denied','not_obtained'] && claim_type != 'emergency'"]
+  prov_in_network -> auth_denied          [cond="experimental_treatment == true && clinical_trial_approved == false"]
+
+  prov_oon_emergency -> auth_not_required [cond="claim_type == 'emergency' && emergency_verified == true"]
+  prov_oon_emergency -> auth_denied       [cond="claim_type == 'emergency' && emergency_verified == false"]
+
+  prov_out_network -> auth_approved       [cond="prior_auth_status == 'approved' && auth_service_matches_claim == true && out_of_network_exception == true"]
+  prov_out_network -> auth_denied         [cond="prior_auth_status != 'approved' || out_of_network_exception == false"]
+
+  # Level 5: Benefit Limits & Coordination of Benefits (COB)
+  benefit_primary
+  benefit_secondary
+  benefit_exhausted [result="adjudicated=false,reason=benefit_limit_exhausted"]
+  benefit_cob_excess [result="adjudicated=false,reason=cob_no_liability_remaining"]
+
+  auth_approved -> benefit_primary        [cond="other_insurance == false && annual_benefit_used < annual_benefit_max && lifetime_max_reached == false"]
+  auth_approved -> benefit_secondary      [cond="other_insurance == true && primary_paid_amount > 0 && annual_benefit_used < annual_benefit_max"]
+  auth_approved -> benefit_exhausted      [cond="annual_benefit_used >= annual_benefit_max || lifetime_max_reached == true"]
+  auth_approved -> benefit_cob_excess     [cond="other_insurance == true && primary_paid_amount >= allowed_amount"]
+
+  auth_not_required -> benefit_primary    [cond="other_insurance == false && annual_benefit_used < annual_benefit_max && lifetime_max_reached == false"]
+  auth_not_required -> benefit_secondary  [cond="other_insurance == true && primary_paid_amount > 0 && annual_benefit_used < annual_benefit_max"]
+  auth_not_required -> benefit_exhausted  [cond="annual_benefit_used >= annual_benefit_max || lifetime_max_reached == true"]
+  auth_not_required -> benefit_cob_excess [cond="other_insurance == true && primary_paid_amount >= allowed_amount"]
+
+  auth_pending -> benefit_primary         [cond="other_insurance == false && auto_adjudicate_pending == true && annual_benefit_used < annual_benefit_max"]
+  auth_pending -> benefit_exhausted       [cond="annual_benefit_used >= annual_benefit_max"]
+
+  # Level 6: Cost Sharing Calculation — Deductible, Copay, Coinsurance
+  cost_share_applied
+  cost_share_zero
+  cost_share_max_oop [result="adjudicated=true,member_liability=0,reason=out_of_pocket_max_met,paid_at=100pct"]
+
+  benefit_primary -> cost_share_max_oop   [cond="ytd_member_oop >= oop_max_individual"]
+  benefit_primary -> cost_share_zero      [cond="ytd_member_oop < oop_max_individual && deductible_met == true && copay_amount == 0 && coinsurance_pct == 0"]
+  benefit_primary -> cost_share_applied   [cond="ytd_member_oop < oop_max_individual && (deductible_met == false || copay_amount > 0 || coinsurance_pct > 0)"]
+
+  benefit_secondary -> cost_share_max_oop [cond="ytd_member_oop >= oop_max_individual"]
+  benefit_secondary -> cost_share_applied [cond="ytd_member_oop < oop_max_individual && allowed_amount > primary_paid_amount"]
+  benefit_secondary -> cost_share_zero    [cond="primary_paid_amount >= allowed_amount * 0.90 && ytd_member_oop < oop_max_individual"]
+
+  # Level 7: Fraud & Abuse Scoring
+  fraud_low
+  fraud_medium
+  fraud_high_review [result="adjudicated=pending,reason=fraud_review_required,action=suspend_payment"]
+
+  cost_share_applied -> fraud_low         [cond="fraud_score <= 20 && claim_amount <= expected_allowed_amount * 1.1 && provider_fraud_flag == false"]
+  cost_share_applied -> fraud_medium      [cond="fraud_score > 20 && fraud_score <= 50 && provider_fraud_flag == false"]
+  cost_share_applied -> fraud_high_review [cond="fraud_score > 50 || provider_fraud_flag == true || claim_amount > expected_allowed_amount * 2.0"]
+
+  cost_share_zero -> fraud_low            [cond="fraud_score <= 15 && provider_fraud_flag == false"]
+  cost_share_zero -> fraud_medium         [cond="fraud_score > 15 && fraud_score <= 40 && provider_fraud_flag == false"]
+  cost_share_zero -> fraud_high_review    [cond="fraud_score > 40 || provider_fraud_flag == true"]
+
+  # Level 8: Payment Determination & Remittance
+  pay_clean       [result="adjudicated=true,payment_status=approved,remittance=eft,audit_flag=false"]
+  pay_review      [result="adjudicated=true,payment_status=approved_with_review,remittance=check,audit_flag=true"]
+  pay_adjusted    [result="adjudicated=true,payment_status=partially_approved,remittance=eft,adjustment_reason=fee_schedule"]
+  pay_denied_clinical [result="adjudicated=false,payment_status=denied,reason=clinical_edit_failed,appeal_right=true"]
+
+  fraud_low -> pay_clean                  [cond="fee_schedule_variance <= 0.05 && claim_amount <= allowed_amount && no_edit_failures == true"]
+  fraud_low -> pay_adjusted               [cond="fee_schedule_variance > 0.05 && fee_schedule_variance <= 0.20 && no_edit_failures == true"]
+  fraud_low -> pay_denied_clinical        [cond="clinical_edit_failure == true && no_edit_failures == false"]
+
+  fraud_medium -> pay_clean               [cond="fee_schedule_variance <= 0.05 && no_edit_failures == true && claim_amount <= allowed_amount * 1.05"]
+  fraud_medium -> pay_review              [cond="fee_schedule_variance <= 0.15 && no_edit_failures == true && claim_amount > allowed_amount * 1.05"]
+  fraud_medium -> pay_adjusted            [cond="fee_schedule_variance > 0.15 && fee_schedule_variance <= 0.30"]
+  fraud_medium -> pay_denied_clinical     [cond="clinical_edit_failure == true"]
+}

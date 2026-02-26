@@ -1,0 +1,160 @@
+digraph MortgageApprovalPolicy {
+  start [result=""]
+
+  # Level 1: Loan Type & Citizenship
+  lt_conventional
+  lt_fha
+  lt_va
+  lt_jumbo
+  lt_usda
+  reject_ineligible_applicant [result="approved=false,reason=citizenship_or_status_ineligible"]
+
+  start -> reject_ineligible_applicant  [cond="citizenship_status == 'undocumented'"]
+  start -> lt_va                        [cond="citizenship_status != 'undocumented' && military_service == true && va_entitlement == true"]
+  start -> lt_usda                      [cond="citizenship_status != 'undocumented' && military_service == false && property_rural == true && household_income_pct_area_median <= 115"]
+  start -> lt_fha                       [cond="citizenship_status != 'undocumented' && military_service == false && credit_score >= 500 && credit_score < 620 && down_payment_pct >= 3.5"]
+  start -> lt_conventional              [cond="citizenship_status != 'undocumented' && military_service == false && credit_score >= 620 && loan_amount <= 726200"]
+  start -> lt_jumbo                     [cond="citizenship_status != 'undocumented' && military_service == false && credit_score >= 700 && loan_amount > 726200"]
+  start -> reject_ineligible_applicant  [cond="credit_score < 500 && military_service == false"]
+
+  # Level 2: Income Verification & Employment Type
+  emp_w2_stable
+  emp_self_employed
+  emp_contract
+  emp_retired
+  emp_foreign_income
+  reject_unverifiable_income [result="approved=false,reason=income_unverifiable"]
+
+  lt_conventional -> emp_w2_stable        [cond="employment_type == 'w2' && employment_months >= 24"]
+  lt_conventional -> emp_self_employed    [cond="employment_type == 'self_employed' && tax_returns_available >= 2"]
+  lt_conventional -> emp_contract         [cond="employment_type == 'contract' && employment_months >= 12"]
+  lt_conventional -> emp_retired          [cond="employment_type == 'retired' && retirement_income_documented == true"]
+  lt_conventional -> reject_unverifiable_income [cond="employment_type == 'w2' && employment_months < 24"]
+
+  lt_fha -> emp_w2_stable               [cond="employment_type == 'w2' && employment_months >= 12"]
+  lt_fha -> emp_self_employed           [cond="employment_type == 'self_employed' && tax_returns_available >= 2"]
+  lt_fha -> emp_contract                [cond="employment_type == 'contract' && employment_months >= 12"]
+  lt_fha -> emp_retired                 [cond="employment_type == 'retired'"]
+  lt_fha -> reject_unverifiable_income  [cond="employment_type == 'w2' && employment_months < 12 && no_exception == true"]
+
+  lt_va -> emp_w2_stable                [cond="employment_type == 'w2' && employment_months >= 12"]
+  lt_va -> emp_self_employed            [cond="employment_type == 'self_employed' && tax_returns_available >= 2"]
+  lt_va -> emp_retired                  [cond="employment_type == 'retired'"]
+  lt_va -> emp_contract                 [cond="employment_type == 'contract' && employment_months >= 12"]
+  lt_va -> emp_foreign_income           [cond="income_source_country != 'US'"]
+
+  lt_jumbo -> emp_w2_stable             [cond="employment_type == 'w2' && employment_months >= 24 && gross_annual_income >= 200000"]
+  lt_jumbo -> emp_self_employed         [cond="employment_type == 'self_employed' && tax_returns_available >= 2 && avg_net_income >= 150000"]
+  lt_jumbo -> reject_unverifiable_income [cond="gross_annual_income < 200000 && employment_type != 'self_employed'"]
+
+  lt_usda -> emp_w2_stable              [cond="employment_type == 'w2' && employment_months >= 12"]
+  lt_usda -> emp_self_employed          [cond="employment_type == 'self_employed' && tax_returns_available >= 2"]
+  lt_usda -> emp_retired                [cond="employment_type == 'retired'"]
+  lt_usda -> reject_unverifiable_income [cond="employment_months < 12 && employment_type == 'w2'"]
+
+  # Level 3: Debt-to-Income Ratio (DTI) Assessment
+  dti_excellent
+  dti_good
+  dti_marginal
+  dti_reject [result="approved=false,reason=dti_too_high"]
+
+  emp_w2_stable -> dti_excellent        [cond="front_end_dti <= 28 && back_end_dti <= 36"]
+  emp_w2_stable -> dti_good             [cond="front_end_dti <= 31 && back_end_dti > 36 && back_end_dti <= 43"]
+  emp_w2_stable -> dti_marginal         [cond="front_end_dti <= 36 && back_end_dti > 43 && back_end_dti <= 50"]
+  emp_w2_stable -> dti_reject           [cond="back_end_dti > 50"]
+
+  emp_self_employed -> dti_excellent    [cond="front_end_dti <= 25 && back_end_dti <= 33"]
+  emp_self_employed -> dti_good         [cond="front_end_dti <= 30 && back_end_dti > 33 && back_end_dti <= 41"]
+  emp_self_employed -> dti_marginal     [cond="back_end_dti > 41 && back_end_dti <= 47"]
+  emp_self_employed -> dti_reject       [cond="back_end_dti > 47"]
+
+  emp_contract -> dti_excellent         [cond="front_end_dti <= 26 && back_end_dti <= 36"]
+  emp_contract -> dti_good              [cond="back_end_dti > 36 && back_end_dti <= 43"]
+  emp_contract -> dti_marginal          [cond="back_end_dti > 43 && back_end_dti <= 48"]
+  emp_contract -> dti_reject            [cond="back_end_dti > 48"]
+
+  emp_retired -> dti_excellent          [cond="front_end_dti <= 28 && back_end_dti <= 36"]
+  emp_retired -> dti_good               [cond="back_end_dti > 36 && back_end_dti <= 43"]
+  emp_retired -> dti_reject             [cond="back_end_dti > 43"]
+
+  emp_foreign_income -> dti_good        [cond="front_end_dti <= 28 && back_end_dti <= 41 && forex_risk == 'low'"]
+  emp_foreign_income -> dti_marginal    [cond="back_end_dti > 41 && back_end_dti <= 45 && forex_risk != 'high'"]
+  emp_foreign_income -> dti_reject      [cond="back_end_dti > 45 || forex_risk == 'high'"]
+
+  # Level 4: Credit Profile Analysis
+  cred_prime
+  cred_near_prime
+  cred_subprime
+  cred_derog [result="approved=false,reason=derogatory_marks_disqualify"]
+
+  dti_excellent -> cred_prime           [cond="credit_score >= 760 && derogatory_marks == 0 && collections == 0"]
+  dti_excellent -> cred_near_prime      [cond="credit_score >= 680 && credit_score < 760 && derogatory_marks <= 1"]
+  dti_excellent -> cred_subprime        [cond="credit_score >= 580 && credit_score < 680"]
+  dti_excellent -> cred_derog           [cond="derogatory_marks > 2 || foreclosure_last_7y == true"]
+
+  dti_good -> cred_prime                [cond="credit_score >= 780 && derogatory_marks == 0"]
+  dti_good -> cred_near_prime           [cond="credit_score >= 700 && credit_score < 780 && derogatory_marks <= 1"]
+  dti_good -> cred_subprime             [cond="credit_score >= 620 && credit_score < 700 && derogatory_marks == 0"]
+  dti_good -> cred_derog                [cond="derogatory_marks > 1 || foreclosure_last_7y == true"]
+
+  dti_marginal -> cred_prime            [cond="credit_score >= 800 && derogatory_marks == 0 && collections == 0"]
+  dti_marginal -> cred_near_prime       [cond="credit_score >= 740 && credit_score < 800 && derogatory_marks == 0"]
+  dti_marginal -> cred_derog            [cond="credit_score < 740 || derogatory_marks > 0"]
+
+  # Level 5: Down Payment & LTV Analysis
+  ltv_excellent
+  ltv_standard
+  ltv_high
+  ltv_reject [result="approved=false,reason=ltv_exceeds_program_limit"]
+
+  cred_prime -> ltv_excellent           [cond="down_payment_pct >= 20 && ltv <= 80"]
+  cred_prime -> ltv_standard            [cond="down_payment_pct >= 10 && down_payment_pct < 20 && ltv <= 90"]
+  cred_prime -> ltv_high                [cond="down_payment_pct >= 5 && down_payment_pct < 10 && ltv <= 95"]
+  cred_prime -> ltv_reject              [cond="ltv > 97"]
+
+  cred_near_prime -> ltv_excellent      [cond="down_payment_pct >= 20 && ltv <= 80"]
+  cred_near_prime -> ltv_standard       [cond="down_payment_pct >= 10 && ltv <= 90"]
+  cred_near_prime -> ltv_high           [cond="down_payment_pct >= 5 && ltv <= 95"]
+  cred_near_prime -> ltv_reject         [cond="ltv > 95"]
+
+  cred_subprime -> ltv_standard         [cond="down_payment_pct >= 20 && ltv <= 80"]
+  cred_subprime -> ltv_high             [cond="down_payment_pct >= 10 && ltv <= 90"]
+  cred_subprime -> ltv_reject           [cond="ltv > 90"]
+
+  # Level 6: Property Appraisal & Condition
+  prop_pass
+  prop_marginal
+  prop_reject [result="approved=false,reason=property_fails_appraisal"]
+
+  ltv_excellent -> prop_pass            [cond="appraisal_value >= purchase_price && property_condition != 'poor' && zoning == 'residential'"]
+  ltv_excellent -> prop_marginal        [cond="appraisal_value >= purchase_price * 0.95 && appraisal_value < purchase_price && property_condition != 'poor'"]
+  ltv_excellent -> prop_reject          [cond="appraisal_value < purchase_price * 0.95 || property_condition == 'poor'"]
+
+  ltv_standard -> prop_pass             [cond="appraisal_value >= purchase_price && property_condition == 'good' && zoning == 'residential'"]
+  ltv_standard -> prop_marginal         [cond="appraisal_value >= purchase_price * 0.97 && property_condition != 'poor'"]
+  ltv_standard -> prop_reject           [cond="appraisal_value < purchase_price * 0.97 || property_condition == 'poor'"]
+
+  ltv_high -> prop_pass                 [cond="appraisal_value >= purchase_price && property_condition == 'good' && flood_zone == false"]
+  ltv_high -> prop_marginal             [cond="appraisal_value >= purchase_price && property_condition == 'fair' && flood_zone == false"]
+  ltv_high -> prop_reject               [cond="appraisal_value < purchase_price || flood_zone == true || property_condition == 'poor'"]
+
+  # Level 7: Final Loan Terms Output
+  loan_tier_a  [result="approved=true,tier=A,rate_premium=0.0,pmi_required=false,max_ltv=80,underwriting=automated"]
+  loan_tier_b  [result="approved=true,tier=B,rate_premium=0.25,pmi_required=false,max_ltv=85,underwriting=automated"]
+  loan_tier_c  [result="approved=true,tier=C,rate_premium=0.5,pmi_required=true,max_ltv=90,underwriting=automated"]
+  loan_tier_d  [result="approved=true,tier=D,rate_premium=1.0,pmi_required=true,max_ltv=95,underwriting=manual_review"]
+  loan_tier_e  [result="approved=true,tier=E,rate_premium=1.75,pmi_required=true,max_ltv=96.5,underwriting=manual_review"]
+  loan_cond_approval [result="approved=conditional,reason=conditions_to_satisfy,underwriting=manual_review"]
+
+  prop_pass -> loan_tier_a              [cond="cred_profile == 'prime' && ltv_category == 'excellent'"]
+  prop_pass -> loan_tier_b              [cond="cred_profile == 'prime' && ltv_category == 'standard'"]
+  prop_pass -> loan_tier_b              [cond="cred_profile == 'near_prime' && ltv_category == 'excellent'"]
+  prop_pass -> loan_tier_c              [cond="cred_profile == 'near_prime' && ltv_category == 'standard'"]
+  prop_pass -> loan_tier_c              [cond="cred_profile == 'prime' && ltv_category == 'high'"]
+  prop_pass -> loan_tier_d              [cond="cred_profile == 'near_prime' && ltv_category == 'high'"]
+  prop_pass -> loan_tier_e              [cond="cred_profile == 'subprime'"]
+
+  prop_marginal -> loan_tier_c          [cond="cred_profile == 'prime'"]
+  prop_marginal -> loan_tier_d          [cond="cred_profile == 'near_prime'"]
+  prop_marginal -> loan_cond_approval   [cond="cred_profile == 'subprime'"]
+}

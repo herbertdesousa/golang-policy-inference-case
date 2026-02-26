@@ -72,7 +72,7 @@ digraph EcommerceFraud {
   vpn_reject [result="approved=false,action=block,reason=vpn_geo_mismatch"]
   
   geo_match -> device_check_safe [cond="is_vpn == false"]
-  geo_match -> device_check_warn [cond="is_vpn == true"]
+  geo_match -> device_check_warn [cond="ib2b_loan_policy.dots_vpn == true"]
 
   geo_mismatch -> vpn_reject [cond="is_vpn == true"]
   geo_mismatch -> device_check_critical [cond="is_vpn == false"]
