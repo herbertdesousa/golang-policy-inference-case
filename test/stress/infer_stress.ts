@@ -9,12 +9,12 @@ export const options = {
     http_req_failed: ["rate<0.01"],
   },
   scenarios: {
-    fixed_200_RPS: {
+    fixed_1000_RPS: {
       executor: "constant-arrival-rate",
-      rate: 200,
+      rate: 1000,
       duration: "30s",
-      preAllocatedVUs: 100,
-      maxVUs: 400,
+      preAllocatedVUs: 200,
+      startTime: "0s",
     },
   },
 };
