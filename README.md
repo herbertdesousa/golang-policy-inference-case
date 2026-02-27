@@ -54,7 +54,7 @@ Question: Option 2 make it worth?
 
 Take a little higher with **200RPS**
 
-| Configuration                                    | p(90)  | p(95)    | p(99)  | avg      | min      | max     |
-| ------------------------------------------------ | ------ | -------- | ------ | -------- | -------- | ------- |
-| CPU 0.25 + 125 MB + 2 instances                  | 505ms  | 680.74ms | 1.1s   | 162.15ms | 1.06ms   | 1.71s   |
-| CPU 0.25 + 125 MB + 2 instances + instance cache | 1.03ms | 1.21ms   | 1.77ms | 736.87µs | 277.74µs | 10.45ms |
+| Configuration                                    | p(90)    | p(95)   | p(99)  | avg      | min      | max     |
+| ------------------------------------------------ | -------- | ------- | ------ | -------- | -------- | ------- |
+| CPU 0.25 + 125 MB + 2 instances                  | 3.88s    | 4.74s   | 6.55s  | 1.90s    | 1.16ms   | 11.85s  |
+| CPU 0.25 + 125 MB + 2 instances + instance cache | 717.51µs | 789.5µs | 1.14ms | 560.69µs | 257.47µs | 17.18ms |

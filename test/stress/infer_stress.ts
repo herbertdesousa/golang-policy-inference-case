@@ -9,27 +9,12 @@ export const options = {
     http_req_failed: ["rate<0.01"],
   },
   scenarios: {
-    fixed_50_RPS: {
-      executor: "constant-arrival-rate",
-      rate: 50,
-      preAllocatedVUs: 50,
-      duration: "30s",
-      startTime: "0s",
-    },
-    ramp_200_RPS: {
-      executor: "ramping-arrival-rate",
-      startRate: 50,
-      timeUnit: "1s",
-      preAllocatedVUs: 50,
-      stages: [{ target: 200, duration: "5s" }],
-      startTime: "30s",
-    },
     fixed_200_RPS: {
       executor: "constant-arrival-rate",
       rate: 200,
       duration: "30s",
-      preAllocatedVUs: 50,
-      startTime: "35s",
+      preAllocatedVUs: 100,
+      maxVUs: 400,
     },
   },
 };
